@@ -13,13 +13,15 @@ public class testSpotify : MonoBehaviour
 
     void Start()
     {
-        Conductor.OnBeat += a;
+        Conductor.OnAttack += a;
         rend = GetComponent<Renderer>();
     }
 
-    void a()
+    void a(float start, float max)
     {
-        t = 1;
+        if (max >= -6) {
+            t = 1;
+        }
     }
 
     // Update is called once per frame
