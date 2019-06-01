@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class testSpotify : MonoBehaviour
+public class beatEffector : MonoBehaviour
 {
     // Start is called before the first frame update
     Vector3 beatScale = new Vector3(3f, 0, 0);
@@ -12,14 +12,12 @@ public class testSpotify : MonoBehaviour
 
     void Start()
     {
-        Conductor.OnAttack += a;
+        Conductor.OnTick += a;
     }
 
-    void a(float start, float max)
+    void a(bool bar, bool beat)
     {
-        if (max >= -6) {
             t = 1;
-        }
     }
 
     // Update is called once per frame

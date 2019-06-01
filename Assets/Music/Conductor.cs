@@ -12,8 +12,8 @@ public class Conductor : SceneSingleton<Conductor>
         remove { Instance._onAttack -= value; }
     }
 
-    event System.Action _onTick = delegate { };
-    public static event System.Action OnTick
+    event System.Action<bool, bool> _onTick = delegate { };
+    public static event System.Action<bool, bool> OnTick
     {
         add { Instance._onTick += value; }
         remove { Instance._onTick -= value; }
@@ -25,8 +25,8 @@ public class Conductor : SceneSingleton<Conductor>
 
     private int currentSegment = 0;
     private int currentBeat = 0;
-    private int lastBeat = -1;
-    private int lastSegment = -1;
+    private int currentBar = 0;
+    private int currentTatum = 0;
     private bool hasSegmentLoudness = false;
 
     // Start is called before the first frame update
@@ -47,39 +47,46 @@ public class Conductor : SceneSingleton<Conductor>
     }
 
     // Update is called once per frame
-    void FixedUpdate()
+    void Update()
     {
-        // TODO: Compare loudness_max with loudness_start in order to find an appropriate attack ratio for interesting sound event
+        var currentAudioTime = audioSource.time;
+
         // Make another event (not onbeat) for this kind of info since it's not a beat per se
-        if (currentTrack.segments[currentSegment + 1].start <= audioSource.time) {
+        var s = currentTrack.segments[currentSegment];
+        if (currentTrack.segments[currentSegment + 1].start <= currentAudioTime) {
             currentSegment++;
+            s = currentTrack.segments[currentSegment];
+            //Debug.Log(string.Format("start_time: {0}, loudness_start: {1}, loudness_max_time: {2}, loudness_max: {3}, Loudness ratio: {4}, Audiosource time: {5}", s.start, s.loudness_start, s.loudness_max_time, s.loudness_max, s.loudness_max/s.loudness_start, audioSource.time));
             hasSegmentLoudness = false;
         }
-        var s = currentTrack.segments[currentSegment];
-        if (lastSegment != currentSegment) {
-            Debug.Log(string.Format("start_time: {0}, loudness_start: {1}, loudness_max_time: {2}, loudness_max: {3}, Loudness ratio: {4}, Audiosource time: {5}", s.start, s.loudness_start, s.loudness_max_time, s.loudness_max, s.loudness_max/s.loudness_start, audioSource.time));
-        }
-        if (!hasSegmentLoudness && (s.start + s.loudness_max_time) <= audioSource.time) {
+        
+        if (!hasSegmentLoudness && (s.start + s.loudness_max_time) <= currentAudioTime) {
             _onAttack(s.loudness_start, s.loudness_max);
             hasSegmentLoudness = true;
         }
+        
+        var barChanged = false;
+        var bar = currentTrack.bars[currentBar];
+        if (currentTrack.bars[currentBar + 1].start <= currentAudioTime) {
+            currentBar++;
+            barChanged = true;
+            bar = currentTrack.bars[currentBar];
+        }
 
-        lastSegment = currentSegment;
-    }
-
-    // Update is called once per frame
-    void TickUpdate()
-    {
-        // TODO: transform raw beats/tatums/bars into a nice function "onTick" with nice pre-made info like a counter and what has changed (tatum, bar or beat or all)
-        if (currentTrack.beats[currentBeat + 1].start <= audioSource.time) {
+        var beatChanged = false;
+        var beat = currentTrack.beats[currentBeat];
+        if (currentTrack.beats[currentBeat + 1].start <= currentAudioTime) {
             currentBeat++;
-        }
-        var b = currentTrack.beats[currentBeat];
-        if (lastBeat != currentBeat) {
-            _onTick();
-            Debug.Log(string.Format("confidence: {0}", b.confidence));
+            beatChanged = true;
+            beat = currentTrack.beats[currentBeat];
         }
 
-        lastBeat = currentBeat;
+        var tatum = currentTrack.tatums[currentTatum];
+        if (currentTrack.tatums[currentTatum + 1].start <= currentAudioTime) {
+            currentTatum++;
+            tatum = currentTrack.tatums[currentTatum];
+            //Debug.Log(string.Format("bar changed: {0}, beat changed: {1}, audiosource start: {2}", barChanged, beatChanged, audioSource.time));
+            _onTick(barChanged, beatChanged);
+        }
     }
 }
