@@ -17,6 +17,7 @@ public class beatEffector : MonoBehaviour
 
     void a(bool bar, bool beat)
     {
+        if(beat)
             t = 1;
     }
 

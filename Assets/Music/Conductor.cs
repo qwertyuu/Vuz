@@ -67,7 +67,7 @@ public class Conductor : SceneSingleton<Conductor>
         
         var barChanged = false;
         var bar = currentTrack.bars[currentBar];
-        if (currentTrack.bars[currentBar + 1].start <= currentAudioTime) {
+        if (isLessOrNearOf(currentTrack.bars[currentBar + 1].start, currentAudioTime)) {
             currentBar++;
             barChanged = true;
             bar = currentTrack.bars[currentBar];
@@ -75,18 +75,32 @@ public class Conductor : SceneSingleton<Conductor>
 
         var beatChanged = false;
         var beat = currentTrack.beats[currentBeat];
-        if (currentTrack.beats[currentBeat + 1].start <= currentAudioTime) {
+        if (isLessOrNearOf(currentTrack.beats[currentBeat + 1].start, currentAudioTime)) {
             currentBeat++;
             beatChanged = true;
             beat = currentTrack.beats[currentBeat];
         }
 
         var tatum = currentTrack.tatums[currentTatum];
-        if (currentTrack.tatums[currentTatum + 1].start <= currentAudioTime) {
+        if (isLessOrNearOf(currentTrack.tatums[currentTatum + 1].start, currentAudioTime)) {
             currentTatum++;
             tatum = currentTrack.tatums[currentTatum];
-            //Debug.Log(string.Format("bar changed: {0}, beat changed: {1}, audiosource start: {2}", barChanged, beatChanged, audioSource.time));
+            //Debug.Log(string.Format("bar changed: {0}, beat changed: {1}, audiosource time: {2}", barChanged, beatChanged, audioSource.time));
+            //Debug.Log(string.Format("bar start: {0}, beat start: {1}, tatum start: {2}, audiosource time: {3}", bar.start, beat.start, tatum.start, audioSource.time));
             _onTick(barChanged, beatChanged);
         }
+
+        //Debug.Log(string.Format("next tatum start: {0}, audiosource time: {1}", currentTrack.tatums[currentTatum + 1].start, audioSource.time));
+    }
+
+    /*
+        Makes it easier to make beat match in case we get a big lag between frames
+    */
+    bool isLessOrNearOf(float first, float second, float tolerence = 0.015f)
+    {
+        if (first <= second) {
+            return true;
+        }
+        return first - second <= tolerence;
     }
 }
