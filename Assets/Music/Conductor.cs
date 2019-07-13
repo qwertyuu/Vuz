@@ -19,6 +19,13 @@ public class Conductor : SceneSingleton<Conductor>
         remove { Instance._onTick -= value; }
     }
 
+    event System.Action<Segment> _onSegment = delegate { };
+    public static event System.Action<Segment> OnSegment
+    {
+        add { Instance._onSegment += value; }
+        remove { Instance._onSegment -= value; }
+    }
+
 	public static AudioSource audioSource;
 
     private Track currentTrack;
@@ -35,7 +42,7 @@ public class Conductor : SceneSingleton<Conductor>
 		audioSource = GetComponent<AudioSource> ();
         
         // TODO: Make this interchangable and resettable, you know when you change songs n shit
-        string path = "Assets/Songs/shake.json";
+        string path = "Assets/Songs/Analysis/ClimbingTheCorporateLadder.json";
 
         StreamReader reader = new StreamReader(path); 
 
@@ -56,7 +63,7 @@ public class Conductor : SceneSingleton<Conductor>
         if (currentTrack.segments[currentSegment + 1].start <= currentAudioTime) {
             currentSegment++;
             s = currentTrack.segments[currentSegment];
-            //Debug.Log(string.Format("start_time: {0}, loudness_start: {1}, loudness_max_time: {2}, loudness_max: {3}, Loudness ratio: {4}, Audiosource time: {5}", s.start, s.loudness_start, s.loudness_max_time, s.loudness_max, s.loudness_max/s.loudness_start, audioSource.time));
+            _onSegment(s);
             hasSegmentLoudness = false;
         }
         
@@ -94,13 +101,14 @@ public class Conductor : SceneSingleton<Conductor>
     }
 
     /*
-        Makes it easier to make beat match in case we get a big lag between frames
+        Makes it easier to make beat match in case we get a big gap between frames
     */
     bool isLessOrNearOf(float first, float second, float tolerence = 0.015f)
     {
         if (first <= second) {
             return true;
         }
+        return false;
         return first - second <= tolerence;
     }
 }

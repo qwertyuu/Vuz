@@ -9,4 +9,5 @@ public class Segment
     public float loudness_start;
     public float loudness_max_time;
     public float loudness_max;
+    public float[] pitches;
 }
