@@ -1,7 +1,7 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
 using UnityEngine;
+using System.Linq;
 
 public class Conductor : SceneSingleton<Conductor>
 {
@@ -19,6 +19,13 @@ public class Conductor : SceneSingleton<Conductor>
         remove { Instance._onTick -= value; }
     }
 
+    event System.Action<float, float, float> _onUpdateRelativeTick = delegate { };
+    public static event System.Action<float, float, float> OnUpdateRelativeTick
+    {
+        add { Instance._onUpdateRelativeTick += value; }
+        remove { Instance._onUpdateRelativeTick -= value; }
+    }
+
     event System.Action<Segment> _onSegment = delegate { };
     public static event System.Action<Segment> OnSegment
     {
@@ -26,15 +33,40 @@ public class Conductor : SceneSingleton<Conductor>
         remove { Instance._onSegment -= value; }
     }
 
+    event System.Action<float, float> _onUpdateSegmentAttack = delegate { };
+    public static event System.Action<float, float> OnUpdateSegmentAttack
+    {
+        add { Instance._onUpdateSegmentAttack += value; }
+        remove { Instance._onUpdateSegmentAttack -= value; }
+    }
+
+    event System.Action<Track> _onLoadSong = delegate { };
+    public static event System.Action<Track> OnLoadSong
+    {
+        add { Instance._onLoadSong += value; }
+        remove { Instance._onLoadSong -= value; }
+    }
+
+    event System.Action<float> _onUpdateSongTime = delegate { };
+    public static event System.Action<float> OnUpdateSongTime
+    {
+        add { Instance._onUpdateSongTime += value; }
+        remove { Instance._onUpdateSongTime -= value; }
+    }
+
 	public static AudioSource audioSource;
 
     private Track currentTrack;
 
     private int currentSegment = 0;
+    private int currentSegmentPerLoudness = 0;
     private int currentBeat = 0;
     private int currentBar = 0;
     private int currentTatum = 0;
     private bool hasSegmentLoudness = false;
+
+    private float loudnessTreshold = -6;
+    private Segment[] loudnessFilteredSegments;
 
     // Start is called before the first frame update
     void Start()
@@ -51,6 +83,25 @@ public class Conductor : SceneSingleton<Conductor>
 
         currentTrack = JsonUtility.FromJson<Track>(fileContents);
 
+        PreProcessTrack(currentTrack);
+
+        ComputeSegmentLoudnessArray();
+
+        _onLoadSong(currentTrack);
+    }
+
+    private void ComputeSegmentLoudnessArray()
+    {
+        this.loudnessFilteredSegments = currentTrack.segments.Where(segment => segment.loudness_max >= loudnessTreshold).ToArray();
+    }
+
+    private void PreProcessTrack(Track currentTrack)
+    {
+        // Make loudness max time absolute
+        for (int i = 0; i < currentTrack.segments.Length; i++)
+        {
+            currentTrack.segments[i].loudness_max_time = currentTrack.segments[i].start + currentTrack.segments[i].loudness_max_time;
+        }
     }
 
     // Update is called once per frame
@@ -58,20 +109,59 @@ public class Conductor : SceneSingleton<Conductor>
     {
         var currentAudioTime = audioSource.time;
 
-        // Make another event (not onbeat) for this kind of info since it's not a beat per se
-        var s = currentTrack.segments[currentSegment];
-        if (currentTrack.segments[currentSegment + 1].start <= currentAudioTime) {
-            currentSegment++;
-            s = currentTrack.segments[currentSegment];
-            _onSegment(s);
+        _onUpdateSongTime(currentAudioTime);
+
+        UpdateSegmentAttack(currentAudioTime);
+
+        UpdateRelativeSegmentAttack(currentAudioTime);
+
+        UpdateTick(currentAudioTime);
+    }
+
+    private void UpdateSegmentAttack(float currentAudioTime)
+    {
+        var currentSegment = currentTrack.segments[this.currentSegment];
+        var nextSegment = currentTrack.segments[this.currentSegment + 1];
+        if (nextSegment.start <= currentAudioTime) {
+            this.currentSegment++;
+            currentSegment = currentTrack.segments[this.currentSegment];
+            _onSegment(currentSegment);
             hasSegmentLoudness = false;
         }
         
-        if (!hasSegmentLoudness && (s.start + s.loudness_max_time) <= currentAudioTime) {
-            _onAttack(s.loudness_start, s.loudness_max);
+        if (!hasSegmentLoudness && currentSegment.loudness_max_time <= currentAudioTime) {
+            _onAttack(currentSegment.loudness_start, currentSegment.loudness_max);
             hasSegmentLoudness = true;
         }
-        
+    }
+
+    private void UpdateRelativeSegmentAttack(float currentAudioTime)
+    {
+        var currentSegment = this.loudnessFilteredSegments[this.currentSegmentPerLoudness];
+
+        float relativeTime = 0;
+        float loudnessValue = 0;
+
+        if (this.currentSegmentPerLoudness == 0 && currentAudioTime < currentSegment.loudness_max_time) {
+            relativeTime = (currentAudioTime - currentSegment.start) / (currentSegment.loudness_max_time - currentSegment.start);
+            loudnessValue = currentSegment.loudness_max;
+        } else {
+            var nextSegment = this.loudnessFilteredSegments[this.currentSegmentPerLoudness + 1];
+            if (nextSegment.loudness_max_time <= currentAudioTime) {
+                this.currentSegmentPerLoudness++;
+                
+                currentSegment = this.loudnessFilteredSegments[this.currentSegmentPerLoudness];
+                nextSegment = this.loudnessFilteredSegments[this.currentSegmentPerLoudness + 1];
+            }
+            relativeTime = (currentAudioTime - currentSegment.loudness_max_time) / (nextSegment.loudness_max_time - currentSegment.loudness_max_time);
+            loudnessValue = nextSegment.loudness_max;
+        }
+
+        _onUpdateSegmentAttack(relativeTime, loudnessValue);
+    }
+
+    private void UpdateTick(float currentAudioTime)
+    {
         var barChanged = false;
         var bar = currentTrack.bars[currentBar];
         if (isLessOrNearOf(currentTrack.bars[currentBar + 1].start, currentAudioTime)) {
@@ -92,12 +182,19 @@ public class Conductor : SceneSingleton<Conductor>
         if (isLessOrNearOf(currentTrack.tatums[currentTatum + 1].start, currentAudioTime)) {
             currentTatum++;
             tatum = currentTrack.tatums[currentTatum];
-            //Debug.Log(string.Format("bar changed: {0}, beat changed: {1}, audiosource time: {2}", barChanged, beatChanged, audioSource.time));
-            //Debug.Log(string.Format("bar start: {0}, beat start: {1}, tatum start: {2}, audiosource time: {3}", bar.start, beat.start, tatum.start, audioSource.time));
             _onTick(barChanged, beatChanged);
         }
 
-        //Debug.Log(string.Format("next tatum start: {0}, audiosource time: {1}", currentTrack.tatums[currentTatum + 1].start, audioSource.time));
+        var nextBar = currentTrack.bars[currentBar + 1];
+        float relativeBarTime = (currentAudioTime - bar.start) / (nextBar.start - bar.start);
+
+        var nextBeat = currentTrack.beats[currentBeat + 1];
+        float relativeBeatTime = (currentAudioTime - beat.start) / (nextBeat.start - beat.start);
+
+        var nextTick = currentTrack.tatums[currentTatum + 1];
+        float relativeTickTime = (currentAudioTime - tatum.start) / (nextTick.start - tatum.start);
+
+        _onUpdateRelativeTick(relativeBarTime, relativeBeatTime, relativeTickTime);
     }
 
     /*
@@ -108,7 +205,6 @@ public class Conductor : SceneSingleton<Conductor>
         if (first <= second) {
             return true;
         }
-        return false;
         return first - second <= tolerence;
     }
 }

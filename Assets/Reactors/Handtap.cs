@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class Handtap : MonoBehaviour
 {
@@ -12,7 +10,13 @@ public class Handtap : MonoBehaviour
 
     void Start()
     {
-        Conductor.OnAttack += a;
+        //Conductor.OnAttack += a;
+        Conductor.OnUpdateSegmentAttack += b;
+    }
+
+    private void b(float evolution, float max)
+    {
+        t = 1-evolution;
     }
 
     void a(float start, float max)
@@ -25,7 +29,7 @@ public class Handtap : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        t = Mathf.Max(t - speed, 0);
+        //t = Mathf.Max(t - speed, 0);
 
         transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(restPosition, tapPosition, t));
 
