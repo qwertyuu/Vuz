@@ -64,6 +64,9 @@ public class Conductor : SceneSingleton<Conductor>
     private int currentBar = 0;
     private int currentTatum = 0;
     private bool hasSegmentLoudness = false;
+    
+    [SerializeField]
+    private float globalSongOffset = 0;
 
     private float loudnessTreshold = -6;
     private Segment[] loudnessFilteredSegments;
@@ -74,7 +77,7 @@ public class Conductor : SceneSingleton<Conductor>
 		audioSource = GetComponent<AudioSource> ();
         
         // TODO: Make this interchangable and resettable, you know when you change songs n shit
-        string path = "Assets/Songs/Analysis/ClimbingTheCorporateLadder.json";
+        string path = "Assets/Songs/Analysis/shake.json";
 
         StreamReader reader = new StreamReader(path); 
 
@@ -107,7 +110,7 @@ public class Conductor : SceneSingleton<Conductor>
     // Update is called once per frame
     void Update()
     {
-        var currentAudioTime = audioSource.time;
+        var currentAudioTime = audioSource.time + globalSongOffset;
 
         _onUpdateSongTime(currentAudioTime);
 

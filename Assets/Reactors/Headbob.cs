@@ -6,18 +6,16 @@ public class Headbob : MonoBehaviour
     float bobbingAngle = 10f;
     float sideBobbingAngle = 5f;
     int attackAmount = 0;
+    bool offset = false;
     float t = 0;
     float speed = 0.03f;
 
-    float firstBeatAt;
-    float B;
     private Vector3 originalPosition;
 
     void Awake()
     {
         Conductor.OnTick += a;
-        Conductor.OnLoadSong += b;
-        Conductor.OnUpdateSongTime += UpdateSongTime;
+        Conductor.OnUpdateRelativeTick += UpdateRelativeTick;
     }
 
     void Start()
@@ -25,30 +23,22 @@ public class Headbob : MonoBehaviour
         originalPosition = transform.position;
     }
 
-    private void UpdateSongTime(float currentSoundTime)
+    private void Update()
     {
         t = Mathf.Max(t - speed, 0);
 
         transform.localRotation = Quaternion.Euler(bobbingAngle * t, Mathf.PingPong(attackAmount, 50), -(attackAmount % 2) * 2 * sideBobbingAngle + sideBobbingAngle);
-
-        if (currentSoundTime >= firstBeatAt) {
-            var adjustedTime = currentSoundTime - firstBeatAt;
-            transform.position = new Vector3(originalPosition.x + Mathf.Sin(B * adjustedTime) / 4, originalPosition.y, originalPosition.z);
-        }
     }
 
-    private void b(Track currentTrack)
+    private void UpdateRelativeTick(float relativeBarTime, float relativeBeatTime, float relativeTickTime)
     {
-        // Basé sur https://www.mathsisfun.com/algebra/amplitude-period-frequency-phase-shift.html
-        var firstBeat = currentTrack.beats[0];
-        firstBeatAt = firstBeat.start;
-        var period = firstBeat.duration * 4;
-        B = (2 * Mathf.PI) / period;
+        transform.position = new Vector3(originalPosition.x + Mathf.Cos(Mathf.PI * (relativeBeatTime + (offset ? 1 : 0))) / 4, originalPosition.y, originalPosition.z);
     }
 
     void a(bool bar, bool beat)
     {
         if (beat) {
+            offset = !offset;
             t = 1;
             attackAmount++;
         }
